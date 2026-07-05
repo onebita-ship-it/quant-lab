@@ -26,10 +26,12 @@ python backtests/run_backtest.py --ticker TQQQ_SYNTH --grid
 python backtests/compare_v2.py     # v1 vs v2 (추세필터·쿼터손절·현금비중)
 python backtests/compare_v3.py     # v3 (추세필터 GFC 약점 개선)
 python backtests/compare_v4.py     # v4 (쿨다운 하락국면 한정)
+python backtests/compare_v5.py     # v5 (변동성 필터; 닷컴·GFC·COVID·2022 스트레스)
 
 # 6. 몬테카를로 미래 시뮬레이션 (5년 × 2000경로)
 python simulations/monte_carlo.py --ticker TQQQ_SYNTH --years 5 --paths 2000
-python simulations/monte_carlo_v3.py --years 5 --paths 2000   # v3 추세필터 ON/OFF 비교
+python simulations/monte_carlo_v3.py --years 5 --paths 2000     # v3 추세필터 ON/OFF 비교
+python simulations/monte_carlo_final.py --years 5 --paths 2000  # 최종 견고안(100% vs 현금75%)
 ```
 
 ## 구조
@@ -38,13 +40,13 @@ python simulations/monte_carlo_v3.py --years 5 --paths 2000   # v3 추세필터 
 |---|---|
 | `CLAUDE.md` | Claude Code가 세션마다 읽는 프로젝트 규칙서 |
 | `scripts/` | 데이터 수집(`download_data.py`), 가상 TQQQ 합성(`make_synthetic_tqqq.py`) |
-| `strategies/` | 전략 구현: `infinite_buying.py`(v1) → `_v2` → `_v3` → `_v4` |
-| `backtests/` | 실행기(`run_backtest.py`), 지표(`metrics.py`), 버전 비교(`compare_v2/3/4.py`) |
-| `simulations/` | 몬테카를로(`monte_carlo.py`, `monte_carlo_v3.py`) |
-| `result*.md` | 버전별 결과·해석 리포트 (v1=`result.md`, 이후 `result_v2/3/4.md`) |
+| `strategies/` | 전략 구현: `infinite_buying.py`(v1) → `_v2` → `_v3` → `_v4` → `_v5` |
+| `backtests/` | 실행기(`run_backtest.py`), 지표(`metrics.py`), 버전 비교(`compare_v2/3/4/5.py`) |
+| `simulations/` | 몬테카를로(`monte_carlo.py`, `monte_carlo_v3.py`, `monte_carlo_final.py`) |
+| `result*.md` | 버전별 결과·해석 리포트 (v1=`result.md`, 이후 `result_v2/3/4/5.md`) |
 | `data/`, `reports/` | 캐시·결과 (git 미포함, 재생성 가능) |
 
-## 전략 진화 (v1 → v4)
+## 전략 진화 (v1 → v5)
 
 각 버전이 무엇을 추가했고, 무엇을 배웠는지:
 
@@ -54,6 +56,7 @@ python simulations/monte_carlo_v3.py --years 5 --paths 2000   # v3 추세필터 
 | **v2** | ① 추세 필터(QQQ 200일선) ② 쿼터손절(4일 분할) ③ 현금비중(50/75/100%) | **현금비중이 가장 깨끗한 리스크 레버**. 추세 필터는 양날의 검(닷컴 ✅ / GFC ❌) |
 | **v3** | 추세 필터 GFC 약점 개선: (A)MA 기울기 (B)확정 스트릭 (C)손실후 쿨다운 | **(A)기울기 필터가 GFC를 v1보다 낫게 역전.** 쿨다운(C)은 상시 적용 시 CAGR 붕괴 |
 | **v4** | 쿨다운을 하락 국면(50<200MA)에서만 발동 | **쿨다운은 no-op(필터와 중복) → 폐기 권고.** 방어는 쿨다운 아닌 현금비중으로 |
+| **v5** | 변동성 필터(QQQ 20일 실현변동성이 최근 1년 80%ile 초과 시 진입 금지) | **첫 "순이득" 레이어.** 고변동성 베어(GFC·2022) 방어↑, V자 급반등(COVID) 상방은 반납 |
 
 ### 왜 v2 추세 필터가 GFC에서 실패했나
 200일선 단일 필터는 급락+베어랠리가 교차하는 GFC에서 **랠리가 잠깐 200선을 넘는 고점에서만
@@ -71,12 +74,14 @@ python simulations/monte_carlo_v3.py --years 5 --paths 2000   # v3 추세필터 
 |---|---:|---:|---:|---:|---:|
 | v1 기준 (sell, 100%) | 14.6% | -95.3% | 0.54 | -91.9% | -60.5% |
 | v2 추세 단순필터 (quarter, 100%) | 10.6% | -82.0% | 0.48 | -53.9% | **-75.5%** ❌ |
-| **v3/v4 기울기+스트릭5 (quarter, 100%)** ⭐ | **14.0%** | -62.4% | **0.59** | -38.8% | -38.2% |
-| v3/v4 위 설정 + 현금 75% | 12.9% | **-52.2%** | **0.60** | -29.1% | -28.6% |
+| v3/v4 기울기+스트릭5 (quarter, 100%) | 14.0% | -62.4% | 0.59 | -38.8% | -38.2% |
+| **v5 위 + 변동성필터 80%ile (100%)** ⭐ | 13.5% | -58.9% | 0.58 | -40.6% | **-29.3%** |
+| v5 위 + 변동성필터 + 현금 75% | 12.4% | **-49.3%** | 0.59 | -30.5% | -22.0% |
 
-⭐ **최종 견고안**: `기울기 필터 + 확정스트릭5 + 쿼터손절`, 쿨다운 OFF.
-v1의 CAGR을 거의 지키면서(14.6%→14.0%) MDD를 -95%→-62%로, 스트레스 손실을 절반 이하로 낮춤.
-**추가 방어가 필요하면 쿨다운이 아니라 현금비중을 낮춘다**(국면 무관하게 작동하는 유일한 깨끗한 레버).
+⭐ **현재 견고안(v5)**: `기울기 필터 + 확정스트릭5 + 쿼터손절 + 변동성필터(80%ile)`, 쿨다운 OFF.
+v1의 CAGR을 거의 지키면서(14.6%→13.5%) MDD -95%→-59%, 고변동성 베어(GFC·2022) 방어를 추가로 강화.
+단 변동성필터는 V자 급반등(COVID)에서 상방을 일부 반납한다(트레이드 성격 명확). 자세히는 `result_v5.md`.
+**추가 방어가 필요하면 현금비중을 낮춘다**(국면 무관하게 작동하는 유일한 깨끗한 레버).
 
 > 몬테카를로(5년 2000경로): 추세 필터는 꼬리위험(MDD·반토막 확률)을 낮추는 대신 중앙값을
 > 반납. 단 20일 블록 부트스트랩은 다년 하락장을 거의 못 만들어 필터 이점을 **과소평가**하므로,
