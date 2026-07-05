@@ -11,6 +11,7 @@ v1(원형)부터 v7까지 개선하며 **"수익은 거의 지키고 3배 레버
 
 | 버전 | 내용 | 링크 |
 |---|---|---|
+| **v1.6** | 벤치마크·부품 채굴 → **13612W 카나리아 게이트**(MDD −54→−28%)·연구 종결 | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.6) |
 | **v1.5** | 최종 포트폴리오 배분 (코어+위성 병행) + 외부 폭락 프로토콜 | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.5) |
 | **v1.4** | 탐색·검증 확장 (연도별·v8 후보·v9 2엔진·국면분석/3세계관 MC) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.4) |
 | **v1.3** | 세후+파킹 검증 & 매매일지 자동화 (파킹 룰 ⑦) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.3) |
