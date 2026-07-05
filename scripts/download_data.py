@@ -16,7 +16,11 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 # 기본(무한매수 파이프라인) + v8 후보 합성용(UPRO/SOXL/SQQQ/SGOV의 실물 및 기초지수)
 TICKERS = {"TQQQ": "2010-02-11", "QQQ": "1999-03-10", "SPY": "1993-01-29"}
 CANDIDATE_TICKERS = {"UPRO": None, "SOXL": None, "SQQQ": None, "SGOV": None,
-                     "SOXX": None, "^IRX": None, "BIL": None}
+                     "SOXX": None, "^IRX": None, "BIL": None,
+                     # 벤치마크(채권/금/해외) — make_synthetic_benchmark.py 입력
+                     "TLT": None, "TMF": None, "GLD": None, "EFA": None, "AGG": None,
+                     "IEF": None, "SSO": None, "VEU": None, "GC=F": None, "^TNX": None,
+                     "^FVX": None}
 
 
 def download_real(force: bool = False, candidates: bool = False) -> None:
@@ -27,7 +31,7 @@ def download_real(force: bool = False, candidates: bool = False) -> None:
     if candidates:
         universe.update(CANDIDATE_TICKERS)
     for ticker, start in universe.items():
-        fn = ticker.replace("^", "")
+        fn = ticker.replace("^", "").replace("=F", "_F")
         out = DATA_DIR / f"{fn}.csv"
         if out.exists() and not force:
             print(f"[skip] {out} 이미 존재 (--force로 갱신)")
