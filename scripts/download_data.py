@@ -20,7 +20,9 @@ CANDIDATE_TICKERS = {"UPRO": None, "SOXL": None, "SQQQ": None, "SGOV": None,
                      # 벤치마크(채권/금/해외) — make_synthetic_benchmark.py 입력
                      "TLT": None, "TMF": None, "GLD": None, "EFA": None, "AGG": None,
                      "IEF": None, "SSO": None, "VEU": None, "GC=F": None, "^TNX": None,
-                     "^FVX": None}
+                     "^FVX": None,
+                     # 후보 전략(VAA/ADM/GEM) 자산
+                     "EEM": None, "SCZ": None, "LQD": None, "SHY": None, "TIP": None}
 
 
 def download_real(force: bool = False, candidates: bool = False) -> None:
