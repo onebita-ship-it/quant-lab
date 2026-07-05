@@ -13,26 +13,35 @@ import numpy as np
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# 기본(무한매수 파이프라인) + v8 후보 합성용(UPRO/SOXL/SQQQ/SGOV의 실물 및 기초지수)
 TICKERS = {"TQQQ": "2010-02-11", "QQQ": "1999-03-10", "SPY": "1993-01-29"}
+CANDIDATE_TICKERS = {"UPRO": None, "SOXL": None, "SQQQ": None, "SGOV": None,
+                     "SOXX": None, "^IRX": None, "BIL": None}
 
 
-def download_real(force: bool = False) -> None:
+def download_real(force: bool = False, candidates: bool = False) -> None:
     import yfinance as yf
 
     DATA_DIR.mkdir(exist_ok=True)
-    for ticker, start in TICKERS.items():
-        out = DATA_DIR / f"{ticker}.csv"
+    universe = dict(TICKERS)
+    if candidates:
+        universe.update(CANDIDATE_TICKERS)
+    for ticker, start in universe.items():
+        fn = ticker.replace("^", "")
+        out = DATA_DIR / f"{fn}.csv"
         if out.exists() and not force:
             print(f"[skip] {out} 이미 존재 (--force로 갱신)")
             continue
-        df = yf.download(ticker, start=start, progress=False, auto_adjust=True)
+        df = yf.download(ticker, start=start, period=None if start else "max",
+                         progress=False, auto_adjust=True)
         if df.empty:
             print(f"[error] {ticker} 다운로드 실패", file=sys.stderr)
             continue
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df.index.name = "Date"
-        df[["Open", "High", "Low", "Close", "Volume"]].to_csv(out)
+        cols = [c for c in ["Open", "High", "Low", "Close", "Volume"] if c in df.columns]
+        df[cols].to_csv(out)
         print(f"[ok] {ticker}: {len(df)}일 → {out}")
 
 
@@ -76,8 +85,10 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--synthetic", action="store_true", help="오프라인 합성 데이터 생성")
     p.add_argument("--force", action="store_true", help="캐시 무시하고 다시 다운로드")
+    p.add_argument("--candidates", action="store_true",
+                   help="v8 후보용 티커(UPRO/SOXL/SQQQ/SGOV/SOXX/^IRX/BIL)도 함께 받기")
     args = p.parse_args()
     if args.synthetic:
         make_synthetic()
     else:
-        download_real(force=args.force)
+        download_real(force=args.force, candidates=args.candidates)
