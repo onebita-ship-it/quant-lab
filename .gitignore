@@ -3,3 +3,7 @@ reports/
 __pycache__/
 *.pyc
 .claude/settings.local.json
+# 매매일지 개인 데이터 (첫 실행 시 자동 생성)
+journal/config.json
+journal/state.json
+journal/trades.csv
