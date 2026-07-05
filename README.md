@@ -2,6 +2,8 @@
 
 라우어 무한매수법 계열 전략을 백테스트하고, 파라미터를 walk-forward로 검증하고,
 몬테카를로로 미래 시나리오를 시뮬레이션하는 프로젝트입니다.
+v1(원형)부터 v4까지 개선하며 **"수익은 거의 지키고 3배 레버리지의 파멸적 낙폭만 깎는"**
+견고한 설정을 찾아갑니다.
 
 ## 빠른 시작
 
@@ -15,14 +17,19 @@ python scripts/download_data.py
 python scripts/make_synthetic_tqqq.py
 
 # 3. 백테스트 (기본: 40분할, +10% 익절, 소진 시 전량매도)
-python backtests/run_backtest.py --ticker TQQQ
-python backtests/run_backtest.py --ticker TQQQ_SYNTH   # 2000·2008 포함 구간
+python backtests/run_backtest.py --ticker TQQQ_SYNTH
 
 # 4. 파라미터 그리드서치 + walk-forward 검증
-python backtests/run_backtest.py --ticker TQQQ --grid
+python backtests/run_backtest.py --ticker TQQQ_SYNTH --grid
 
-# 5. 몬테카를로 미래 시뮬레이션 (5년 × 2000경로)
-python simulations/monte_carlo.py --ticker TQQQ --years 5 --paths 2000
+# 5. 버전별 비교 + 스트레스 테스트 (닷컴 2000-2002 / GFC 2007-2009)
+python backtests/compare_v2.py     # v1 vs v2 (추세필터·쿼터손절·현금비중)
+python backtests/compare_v3.py     # v3 (추세필터 GFC 약점 개선)
+python backtests/compare_v4.py     # v4 (쿨다운 하락국면 한정)
+
+# 6. 몬테카를로 미래 시뮬레이션 (5년 × 2000경로)
+python simulations/monte_carlo.py --ticker TQQQ_SYNTH --years 5 --paths 2000
+python simulations/monte_carlo_v3.py --years 5 --paths 2000   # v3 추세필터 ON/OFF 비교
 ```
 
 ## 구조
@@ -31,22 +38,64 @@ python simulations/monte_carlo.py --ticker TQQQ --years 5 --paths 2000
 |---|---|
 | `CLAUDE.md` | Claude Code가 세션마다 읽는 프로젝트 규칙서 |
 | `scripts/` | 데이터 수집(`download_data.py`), 가상 TQQQ 합성(`make_synthetic_tqqq.py`) |
-| `strategies/` | 전략 구현. `infinite_buying.py` = 무한매수법 v1 |
-| `backtests/` | 실행기(`run_backtest.py`) + 성과지표(`metrics.py`) |
-| `simulations/` | 몬테카를로(`monte_carlo.py`) |
+| `strategies/` | 전략 구현: `infinite_buying.py`(v1) → `_v2` → `_v3` → `_v4` |
+| `backtests/` | 실행기(`run_backtest.py`), 지표(`metrics.py`), 버전 비교(`compare_v2/3/4.py`) |
+| `simulations/` | 몬테카를로(`monte_carlo.py`, `monte_carlo_v3.py`) |
+| `result*.md` | 버전별 결과·해석 리포트 (v1=`result.md`, 이후 `result_v2/3/4.md`) |
 | `data/`, `reports/` | 캐시·결과 (git 미포함, 재생성 가능) |
 
-## 무한매수법 v1 규칙 (구현 기준)
+## 전략 진화 (v1 → v4)
+
+각 버전이 무엇을 추가했고, 무엇을 배웠는지:
+
+| 버전 | 추가한 것 | 핵심 발견 |
+|---|---|---|
+| **v1** | 원형 무한매수법 (40분할·+10% 익절·소진 시 전량매도) | B&H보다 낫지만 MDD -95%, 최장 하락 21년. 파멸적 레버리지 리스크 |
+| **v2** | ① 추세 필터(QQQ 200일선) ② 쿼터손절(4일 분할) ③ 현금비중(50/75/100%) | **현금비중이 가장 깨끗한 리스크 레버**. 추세 필터는 양날의 검(닷컴 ✅ / GFC ❌) |
+| **v3** | 추세 필터 GFC 약점 개선: (A)MA 기울기 (B)확정 스트릭 (C)손실후 쿨다운 | **(A)기울기 필터가 GFC를 v1보다 낫게 역전.** 쿨다운(C)은 상시 적용 시 CAGR 붕괴 |
+| **v4** | 쿨다운을 하락 국면(50<200MA)에서만 발동 | **쿨다운은 no-op(필터와 중복) → 폐기 권고.** 방어는 쿨다운 아닌 현금비중으로 |
+
+### 왜 v2 추세 필터가 GFC에서 실패했나
+200일선 단일 필터는 급락+베어랠리가 교차하는 GFC에서 **랠리가 잠깐 200선을 넘는 고점에서만
+진입을 허용** → 그 진입이 곧 급락에 물림(승률 0%). v3의 **MA 기울기 필터(200선이 상승 중일 때만
+진입)**가 하락하는 200선 아래 랠리를 차단해 이 문제를 해결.
+
+### 왜 v4 쿨다운이 no-op인가
+손실 소진 사이클은 상승국면 35건 / 하락국면 7건. 상시 쿨다운은 **상승국면 35건**에서 발동해
+회복장 재진입을 막아 CAGR을 훼손했고(14%→4.6%), 하락국면 7건은 **진입 필터가 이미 재진입을
+차단** 중이라 쿨다운이 막을 게 없다. → 진입 필터가 방어를 충분히 수행하므로 쿨다운은 불필요.
+
+## 성과 요약 (TQQQ_SYNTH, 1999-2026, 분할40·익절15%)
+
+| 설정 | 전체 CAGR | 전체 MDD | 샤프 | 닷컴 | GFC |
+|---|---:|---:|---:|---:|---:|
+| v1 기준 (sell, 100%) | 14.6% | -95.3% | 0.54 | -91.9% | -60.5% |
+| v2 추세 단순필터 (quarter, 100%) | 10.6% | -82.0% | 0.48 | -53.9% | **-75.5%** ❌ |
+| **v3/v4 기울기+스트릭5 (quarter, 100%)** ⭐ | **14.0%** | -62.4% | **0.59** | -38.8% | -38.2% |
+| v3/v4 위 설정 + 현금 75% | 12.9% | **-52.2%** | **0.60** | -29.1% | -28.6% |
+
+⭐ **최종 견고안**: `기울기 필터 + 확정스트릭5 + 쿼터손절`, 쿨다운 OFF.
+v1의 CAGR을 거의 지키면서(14.6%→14.0%) MDD를 -95%→-62%로, 스트레스 손실을 절반 이하로 낮춤.
+**추가 방어가 필요하면 쿨다운이 아니라 현금비중을 낮춘다**(국면 무관하게 작동하는 유일한 깨끗한 레버).
+
+> 몬테카를로(5년 2000경로): 추세 필터는 꼬리위험(MDD·반토막 확률)을 낮추는 대신 중앙값을
+> 반납. 단 20일 블록 부트스트랩은 다년 하락장을 거의 못 만들어 필터 이점을 **과소평가**하므로,
+> 필터의 진짜 가치는 실제 역사 스트레스 구간(닷컴·GFC)에서 확인해야 한다. (`result_v3.md` §6)
+
+## 무한매수법 규칙 (구현 기준)
 
 - 원금 40분할, 매 거래일 종가에 1회분 매수
-- 평단 대비 +10% 도달 시 전량 익절 → 새 사이클 (복리)
-- 40회분 소진 시: `--exhaust sell`(전량 매도, 기본) 또는 `--exhaust hold`(보유 대기)
+- 평단 대비 익절% 도달 시 전량 익절 → 새 사이클 (복리). v1 기본 +10%, v2~ 권장 +15%
+- 소진 시: `sell`(전량 매도) / `hold`(보유 대기) / `quarter`(v2~, 4일 분할 매도)
+- 추세 필터(v2~): QQQ 종가·200일선 기준 신규 사이클 진입 제어 (v3~ 기울기·스트릭 강화)
+- 현금비중(v2~): 자산의 일부만 전략에 투입, 나머지 현금 보유
 - 수수료 0.07% + 슬리피지 0.05% (편도) 반영
 
 ## 주의
 
 - 백테스트 성적 ≠ 미래 수익. 그리드서치 결과는 반드시 검증구간 성과와 함께 볼 것.
 - TQQQ는 3배 레버리지 — 변동성 잠식 존재. `TQQQ_SYNTH`로 2000·2008 구간 필수 확인.
+- `TQQQ_SYNTH`의 2010년 이전은 QQQ에서 합성한 가상값 — 실제 3배 ETF와 완전히 같지 않음(방향성 참고용).
 - 몬테카를로는 "과거 분포 유지" 가정 위의 도구이지 예언이 아님.
 - 이 코드는 연구 도구이며 투자 판단과 책임은 본인에게 있음.
 
