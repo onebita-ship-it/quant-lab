@@ -53,8 +53,17 @@ def main():
         avg = st["invested"] / st["shares"] if st["shares"] else 0.0
         val = st["shares"] * price * C.sell_cost(cfg)
         gain = val / st["invested"] - 1 if st["invested"] else 0.0
+        tp = cfg["take_profit_pct"]
+        # 익절(+tp)까지: 남은 손익 여유 + 필요한 추가 상승률
+        gap_pp = (tp - gain) * 100
+        need_up = (1 + tp) / (1 + gain) - 1 if (1 + gain) > 0 else float("inf")
         print(f"  사이클 진행 중: {st['buys_done']}/{div}회차, 평단(비용포함) {avg:.2f}, "
               f"평가손익 {gain:+.1%}")
+        if gain >= tp:
+            print(f"  🎯 익절 도달! (목표 +{tp:.0%})")
+        else:
+            print(f"  익절(+{tp:.0%})까지: {gap_pp:+.1f}%p 남음 "
+                  f"(가격 약 +{need_up:.1%} 더 오르면 익절)")
 
     print("\n[오늘 할 일]")
     tp = cfg["take_profit_pct"]
@@ -88,6 +97,21 @@ def main():
         else:
             why = "추세 미충족" if not sig["entry_ok"] else "운용현금 없음"
             print(f"  ⏸  진입 대기 — {why}. 오늘 주문 없음.")
+
+    # 파킹(SGOV) 안내 — 미투입 현금은 SGOV로, 금요일엔 다음 주 5회분 매도(룰북 ⑦)
+    print("\n[파킹(SGOV) — 룰북 ⑦]")
+    one = st["one_buy"] if st["cycle_active"] and st["one_buy"] > 0 else st["cash"] / div
+    if st["cash"] > 1e-6 or st["reserve"] > 1e-6:
+        print(f"  미투입 현금 {C.fmt_won(st['cash'])} + 리저브 {C.fmt_won(st['reserve'])} "
+              f"→ 전액 SGOV 파킹 유지")
+    weekday = tqqq.index[-1].weekday()  # 0=월 … 4=금
+    if weekday == 4:
+        next5 = 5 * one
+        print(f"  📅 금요일 — 다음 주 5회분 예수금 확보: SGOV {C.fmt_won(next5)}어치 매도 "
+              f"(1회분 {C.fmt_won(one)} × 5). 매일 매도 금지.")
+    else:
+        wd = "월화수목금토일"[weekday]
+        print(f"  오늘은 {wd}요일 — SGOV 매도일 아님(금요일에 다음 주 5회분만 매도).")
 
     # 리저브 안내
     if st["reserve"] > 1e-6:
