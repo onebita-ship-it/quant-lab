@@ -2,8 +2,18 @@
 
 라우어 무한매수법 계열 전략을 백테스트하고, 파라미터를 walk-forward로 검증하고,
 몬테카를로로 미래 시나리오를 시뮬레이션하는 프로젝트입니다.
-v1(원형)부터 v4까지 개선하며 **"수익은 거의 지키고 3배 레버리지의 파멸적 낙폭만 깎는"**
+v1(원형)부터 v7까지 개선하며 **"수익은 거의 지키고 3배 레버리지의 파멸적 낙폭만 깎는"**
 견고한 설정을 찾아갑니다.
+
+## 릴리스
+
+버전별 스냅샷과 요약 노트는 [GitHub Releases](https://github.com/onebita-ship-it/quant-lab/releases)에서:
+
+| 버전 | 내용 | 링크 |
+|---|---|---|
+| **v1.2** | 실데이터 교차검증 (실 TQQQ 2010~) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.2) |
+| **v1.1** | 변동성 필터 계열 (v5~v7) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.1) |
+| **v1.0** | 추세 필터 최종 견고안 (v1~v4) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.0) |
 
 ## 빠른 시작
 
