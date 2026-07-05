@@ -11,6 +11,7 @@ v1(원형)부터 v7까지 개선하며 **"수익은 거의 지키고 3배 레버
 
 | 버전 | 내용 | 링크 |
 |---|---|---|
+| **v1.3** | 세후+파킹 검증 & 매매일지 자동화 (파킹 룰 ⑦) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.3) |
 | **v1.2** | 실데이터 교차검증 (실 TQQQ 2010~) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.2) |
 | **v1.1** | 변동성 필터 계열 (v5~v7) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.1) |
 | **v1.0** | 추세 필터 최종 견고안 (v1~v4) | [노트](https://github.com/onebita-ship-it/quant-lab/releases/tag/v1.0) |
