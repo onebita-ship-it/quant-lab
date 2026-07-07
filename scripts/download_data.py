@@ -22,7 +22,10 @@ CANDIDATE_TICKERS = {"UPRO": None, "SOXL": None, "SQQQ": None, "SGOV": None,
                      "IEF": None, "SSO": None, "VEU": None, "GC=F": None, "^TNX": None,
                      "^FVX": None,
                      # 후보 전략(VAA/ADM/GEM) 자산
-                     "EEM": None, "SCZ": None, "LQD": None, "SHY": None, "TIP": None}
+                     "EEM": None, "SCZ": None, "LQD": None, "SHY": None, "TIP": None,
+                     # 유니버스 확장 감사(result_universe2.md) — 3배 후보 + 원지수
+                     "KORU": None, "TECL": None, "TNA": None, "EDC": None, "YINN": None,
+                     "EWY": None, "XLK": None, "IWM": None, "FXI": None}
 
 
 def download_real(force: bool = False, candidates: bool = False) -> None:

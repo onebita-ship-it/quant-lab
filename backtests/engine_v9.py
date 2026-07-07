@@ -91,6 +91,7 @@ def run_2engine(spine, prices, signals, moms, meta, core_dd,
     eq = []
     b_deploys = 0
     picks = []
+    hlog = []                     # 일별 보유 라벨 (엔진A 자산 | 'B' | 'SGOV')
 
     def price_at(a, d):
         v = prices[a].get(d, np.nan)
@@ -156,10 +157,13 @@ def run_2engine(spine, prices, signals, moms, meta, core_dd,
         v = cash + sum(u * price_at(a, d) for a, u in pos.items()
                        if not np.isnan(price_at(a, d)))
         eq.append((d, v))
+        hlog.append((d, (held if held and pos else ("B" if pos else "SGOV"))))
 
     e = pd.Series(dict(eq)); e.index = pd.DatetimeIndex(e.index)
+    held_s = pd.Series(dict(hlog)); held_s.index = pd.DatetimeIndex(held_s.index)
     from collections import Counter
-    return e, {"engineB_deploys": b_deploys, "picks": dict(Counter(picks))}
+    return e, {"engineB_deploys": b_deploys, "picks": dict(Counter(picks)),
+               "held": held_s}
 
 
 def build_inputs(assets, meta, spine, mom_short=63, mom_long=126,
