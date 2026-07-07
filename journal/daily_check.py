@@ -1,9 +1,13 @@
-"""매일 아침 실행 — 오늘 진입 조건 충족 여부 + 오늘 주문할 1회분 금액 브리핑.
+"""매일 아침 실행 — 오늘 진입 조건(추세 AND 카나리아) + 1회분 금액 + 위성 신호 브리핑.
 
 사용:
   python journal/daily_check.py                # 캐시 데이터로 오늘 브리핑
   python journal/daily_check.py --refresh      # yfinance로 최신가 갱신 후
   python journal/daily_check.py --asof 2020-03-23   # 특정일 기준(시뮬)
+
+판정 범위 (룰북 = result_final.md §0):
+  ① 코어 진입 게이트 = 200일선 3조건 AND 13612W 카나리아(SPY·EFA·EEM·AGG, 월말 판정)
+  ⑦ SGOV 파킹(금요일 알림)  ⑧ 위성(v9 엔진A) 오늘 타깃(원지수 추세 ON 중 모멘텀 1위)
 
 상태(state.json)는 변경하지 않는다(조언용). 체결 후엔 log_trade.py로 기록.
 """
@@ -33,6 +37,9 @@ def main():
     sig = C.latest_signal(qqq, cfg)
     price = float(tqqq.iloc[-1])
     pdate = tqqq.index[-1].date()
+    asof = args.asof or sig["date"]
+    canary = C.canary_status(asof, refresh=args.refresh)
+    entry_ok = sig["entry_ok"] and canary["ok"]  # 룰북 ① = 추세 AND 카나리아
 
     print("=" * 60)
     print(f" 매매일지 아침 브리핑  |  기준일 {sig['date'].date()}")
@@ -43,7 +50,18 @@ def main():
     print(f"  {ck(sig['above'])} 종가 > 200일선")
     print(f"  {ck(sig['rising'])} 200일선 상승({cfg['slope_lookback']}일 전 대비)")
     print(f"  {ck(sig['streak'] >= sig['confirm_days'])} 연속 충족 {sig['streak']}/{sig['confirm_days']}일")
-    print(f"  → 신규 진입 조건: {'충족 ✅' if sig['entry_ok'] else '미충족 ❌'}")
+
+    print(f"\n[13612W 카나리아 — 룰북 ① v10 (판정 월말 {canary['cutoff']}, 이번 달 유지)]")
+    for a in canary["assets"]:
+        if a["missing"]:
+            print(f"  ❌ {a['ticker']:<4} 데이터 없음 → python scripts/download_data.py 실행")
+        elif a["mom"] is None:
+            print(f"  ⚠️ {a['ticker']:<4} 이력 253일 미만 → 판정 제외")
+        else:
+            print(f"  {ck(a['mom'] >= 0)} {a['ticker']:<4} 13612W {a['mom']:+.3f}  (기준 {a['date']})")
+    print(f"  → 카나리아: {'통과 ✅' if canary['ok'] else '차단 ❌ (하나라도 음수면 신규 진입 금지)'}")
+
+    print(f"\n  ▶ 신규 진입 게이트(추세 AND 카나리아): {'충족 ✅' if entry_ok else '미충족 ❌'}")
 
     print(f"\n[포트폴리오 상태]  ({cfg['trade_ticker']} 종가 {price:.2f}, {pdate})")
     div = cfg["divisions"]
@@ -87,7 +105,7 @@ def main():
             print(f"     체결 후: python journal/log_trade.py --action buy "
                   f"--shares <체결주> --price <체결가>")
     else:
-        if sig["entry_ok"] and st["cash"] > 1e-6:
+        if entry_ok and st["cash"] > 1e-6:
             one = st["cash"] / div
             est = one / (price * C.buy_cost(cfg))
             print(f"  🟩 새 사이클 시작 + 1회차 매수: 1회분 {C.fmt_won(one)} (= 현금/{div}) "
@@ -95,7 +113,12 @@ def main():
             print(f"     체결 후: python journal/log_trade.py --action buy "
                   f"--shares <체결주> --price <체결가> --new-cycle")
         else:
-            why = "추세 미충족" if not sig["entry_ok"] else "운용현금 없음"
+            if not sig["entry_ok"]:
+                why = "추세 미충족"
+            elif not canary["ok"]:
+                why = "카나리아 차단"
+            else:
+                why = "운용현금 없음"
             print(f"  ⏸  진입 대기 — {why}. 오늘 주문 없음.")
 
     # 파킹(SGOV) 안내 — 미투입 현금은 SGOV로, 금요일엔 다음 주 5회분 매도(룰북 ⑦)
@@ -112,6 +135,28 @@ def main():
     else:
         wd = "월화수목금토일"[weekday]
         print(f"  오늘은 {wd}요일 — SGOV 매도일 아님(금요일에 다음 주 5회분만 매도).")
+
+    # 위성(v9 엔진A) 신호 — 룰북 ⑧. 상태 추적 없이 판정만(보유 자산과 비교는 본인이).
+    print("\n[위성(엔진A) 신호 — 룰북 ⑧ (계좌의 42.5%)]")
+    try:
+        sat = C.satellite_status(cfg, asof=args.asof, refresh=args.refresh)
+        for r in sorted(sat["assets"], key=lambda x: (x["mom"] is None, -(x["mom"] or 0))):
+            if r["missing"]:
+                print(f"  ❌ {r['ticker']:<5} 데이터 없음(원지수 {r['index']}) "
+                      f"→ python scripts/download_data.py 실행")
+                continue
+            mom = f"{r['mom']:+.3f}" if r["mom"] is not None else "  n/a"
+            print(f"  {ck(bool(r['on']))} {r['ticker']:<5} 원지수 {r['index']:<4} "
+                  f"추세 {'ON ' if r['on'] else 'OFF'} (스트릭 {r['streak']}/{cfg['confirm_days']})"
+                  f" · 3·6모멘텀 {mom}")
+        print(f"  → 오늘 타깃: {sat['target']}"
+              + ("  (추세 ON 자산 없음 → 전량 SGOV)" if sat["target"] == "SGOV" else ""))
+        if C.is_month_end(pdate):
+            print("  📅 오늘은 월말(근사) — 위성 리밸런스일. 종가에 타깃과 보유 일치시킬 것.")
+        else:
+            print("  월중엔 '보유 자산 신호 OFF → 즉시 타깃 교체'만. 그 외 교체는 월말에.")
+    except Exception as e:
+        print(f"  ⚠️ 위성 신호 계산 실패({e}) — config/universe.txt·데이터 캐시 확인")
 
     # 리저브 안내
     if st["reserve"] > 1e-6:

@@ -3,6 +3,8 @@
 - 설정(config.json) / 상태(state.json) 로드·저장
 - 가격 시리즈 로딩 (data/ 캐시, 선택적 yfinance 갱신)
 - 추세 필터 신호 계산 (QQQ 200일선 상승 20일 판정 + 5일 스트릭)
+- 13612W 카나리아 게이트 (룰북 ① v10 — 월말 판정, 다음 달 유지)
+- 위성(v9 엔진A) 신호 — 원지수 추세 ON 자산의 3·6개월 블렌드 모멘텀 순위 (룰북 ⑧)
 - 비용(수수료+슬리피지) 헬퍼
 
 state.json은 log_trade.py가 갱신하는 '현재 포트폴리오/사이클 상태'.
@@ -19,6 +21,9 @@ DATA_DIR = ROOT / "data"
 CONFIG_PATH = JOURNAL_DIR / "config.json"
 STATE_PATH = JOURNAL_DIR / "state.json"
 TRADES_PATH = JOURNAL_DIR / "trades.csv"
+UNIVERSE_PATH = ROOT / "config" / "universe.txt"
+
+CANARY_TICKERS = ["SPY", "EFA", "EEM", "AGG"]
 
 DEFAULT_CONFIG = {
     "trade_ticker": "TQQQ",
@@ -157,6 +162,100 @@ def latest_signal(qqq, cfg, asof=None):
         "streak": int(streak), "confirm_days": cfg["confirm_days"],
         "entry_ok": bool(row["entry_ok"]),
     }
+
+
+def w13612(h):
+    """13612W 모멘텀 — 백테스트(`backtests/candidate_strategies.w13612`)와 동일한 거래일 오프셋.
+    12×(1개월) + 4×(3개월) + 2×(6개월) + 1×(12개월). 데이터 253일 미만이면 None."""
+    if len(h) < 253:
+        return None
+    r1 = h.iloc[-1] / h.iloc[-22] - 1
+    r3 = h.iloc[-1] / h.iloc[-64] - 1
+    r6 = h.iloc[-1] / h.iloc[-127] - 1
+    r12 = h.iloc[-1] / h.iloc[-253] - 1
+    return float(12 * r1 + 4 * r3 + 2 * r6 + r12)
+
+
+def canary_status(asof, refresh=False, tickers=None):
+    """13612W 카나리아 게이트 (룰북 ① v10) — 월말 판정 값이 다음 달 내내 유지.
+
+    asof가 속한 달의 '직전 월말(마지막 거래일)' 종가 기준으로 4자산 모멘텀을 계산.
+    백테스트(`final_audit_crossval.real_canary`)와 동일하게 데이터 253일 미만 자산은 판정에서
+    제외하고, 판정 대상 중 하나라도 음수면 차단. 단 데이터 파일이 아예 없으면 fail-safe로 차단.
+    """
+    tickers = tickers or CANARY_TICKERS
+    cutoff = pd.Timestamp(asof).replace(day=1) - pd.Timedelta(days=1)  # 지난달 말일
+    rows, ok = [], True
+    for t in tickers:
+        try:
+            h = load_price(t, refresh=refresh).loc[:cutoff]
+        except FileNotFoundError:
+            rows.append({"ticker": t, "mom": None, "date": None, "missing": True})
+            ok = False  # 판정 불가 → 진입 차단 (scripts/download_data.py로 데이터 확보)
+            continue
+        v = w13612(h)
+        rows.append({"ticker": t, "mom": v,
+                     "date": h.index[-1].date() if len(h) else None, "missing": False})
+        if v is not None and v < 0:
+            ok = False
+    return {"ok": ok, "assets": rows, "cutoff": cutoff.date()}
+
+
+def load_universe():
+    """config/universe.txt → [{'ticker','class','index'}] (분기 리뷰 재량 관리 파일)."""
+    rows = []
+    for line in UNIVERSE_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) >= 3:
+            rows.append({"ticker": parts[0], "class": parts[1], "index": parts[2]})
+    return rows
+
+
+def blended_mom(h, short=63, long=126):
+    """3·6개월 블렌드 모멘텀 — 백테스트(`engine_v9.blended_mom`)와 동일.
+    0.5×(63거래일 수익) + 0.5×(126거래일 수익). 데이터 부족 시 None."""
+    if len(h) < long + 1:
+        return None
+    return float(0.5 * (h.iloc[-1] / h.iloc[-1 - short] - 1)
+                 + 0.5 * (h.iloc[-1] / h.iloc[-1 - long] - 1))
+
+
+def satellite_status(cfg, asof=None, refresh=False):
+    """위성(v9 엔진A) 오늘 신호 (룰북 ⑧) — 상태 없이 판정만.
+
+    각 유니버스 자산의 원지수 추세(코어와 동일: 200MA 위+상승20일+5일 스트릭) ON/OFF와
+    매매 티커의 3·6개월 블렌드 모멘텀을 계산해 오늘의 타깃(ON 중 모멘텀 1위, 없으면 SGOV) 반환.
+    """
+    idx_cache, rows = {}, []
+    for u in load_universe():
+        tk, ix = u["ticker"], u["index"]
+        try:
+            if ix not in idx_cache:
+                idx_cache[ix] = load_price(ix, refresh=refresh)
+            idx_s = idx_cache[ix]
+            px = load_price(tk, refresh=refresh)
+        except FileNotFoundError:
+            rows.append({"ticker": tk, "index": ix, "on": None, "streak": 0,
+                         "mom": None, "missing": True})
+            continue
+        if asof is not None:
+            idx_s = idx_s.loc[:pd.Timestamp(asof)]
+            px = px.loc[:pd.Timestamp(asof)]
+        sig = latest_signal(idx_s, cfg)
+        rows.append({"ticker": tk, "index": ix, "on": sig["entry_ok"],
+                     "streak": sig["streak"], "mom": blended_mom(px), "missing": False})
+    on = [r for r in rows if r["on"] and r["mom"] is not None]
+    target = max(on, key=lambda r: r["mom"])["ticker"] if on else "SGOV"
+    return {"assets": rows, "target": target}
+
+
+def is_month_end(date):
+    """다음 영업일이 다른 달이면 월말로 간주 (미국 휴장일은 근사 — 브리핑 용도)."""
+    d = pd.Timestamp(date)
+    return (d + pd.tseries.offsets.BDay(1)).month != d.month
 
 
 def equity(st, price):
