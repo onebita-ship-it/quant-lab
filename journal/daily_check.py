@@ -165,12 +165,35 @@ def main():
     except Exception as e:
         print(f"  ⚠️ 위성 신호 계산 실패({e}) — config/universe.txt·데이터 캐시 확인")
 
-    # 리저브 안내
+    # 리저브 안내 (룰북 ⑤ — 고점대비 -30%/-50%에 리저브 절반씩 투입)
     if st["reserve"] > 1e-6:
         eq = C.equity(st, price)
         dd = eq / st["peak_equity"] - 1 if st["peak_equity"] else 0.0
-        print(f"\n[리저브] 총자산 {C.fmt_won(eq)}, 고점대비 {dd:+.1%}. "
-              f"발동선 {cfg['reserve_triggers']} (기발동 {st['reserve_tiers_fired']})")
+        print(f"\n[리저브 — 룰북 ⑤] 총자산 {C.fmt_won(eq)}, 고점대비 {dd:+.1%}. "
+              f"발동선 {cfg['reserve_triggers']} (기발동 {st['reserve_tiers_fired'] or '없음'})")
+        # 오늘 새로 발동될 티어 판정 (log_trade.py --action deploy_reserve와 동일 규칙)
+        pending, sim_reserve = [], st["reserve"]
+        for thr in cfg["reserve_triggers"]:
+            key = f"{int(thr * 100)}%"
+            if key not in st["reserve_tiers_fired"] and sim_reserve > 1e-6 and dd <= thr:
+                inject = round(sim_reserve * 0.5, 2)
+                pending.append((key, inject))
+                sim_reserve -= inject
+        if pending:
+            for key, inject in pending:
+                print(f"  🔴 리저브 {key} 발동! 리저브 절반 {C.fmt_won(inject)} "
+                      f"→ SGOV 매도 후 운용현금으로 투입(룰북 ⑦).")
+            print(f"     체결 후: python journal/log_trade.py --action deploy_reserve"
+                  + ("  (발동 티어 수만큼 반복 실행)" if len(pending) > 1 else ""))
+        else:
+            nexts = [thr for thr in cfg["reserve_triggers"]
+                     if f"{int(thr * 100)}%" not in st["reserve_tiers_fired"]]
+            if nexts:
+                nt = nexts[0]
+                print(f"  발동 없음 — 다음 발동선 {int(nt * 100)}%까지 "
+                      f"{(dd - nt) * 100:.1f}%p 더 하락하면 발동.")
+            else:
+                print("  모든 리저브 티어 발동 완료.")
     print()
 
 
