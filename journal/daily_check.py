@@ -125,8 +125,15 @@ def main():
     print("\n[파킹(SGOV) — 룰북 ⑦]")
     one = st["one_buy"] if st["cycle_active"] and st["one_buy"] > 0 else st["cash"] / div
     if st["cash"] > 1e-6 or st["reserve"] > 1e-6:
-        print(f"  미투입 현금 {C.fmt_won(st['cash'])} + 리저브 {C.fmt_won(st['reserve'])} "
-              f"→ 전액 SGOV 파킹 유지")
+        print(f"  미투입 현금 {C.fmt_won(st['cash'])} + 리저브 {C.fmt_won(st['reserve'])}")
+        if st["cycle_active"] and st["one_buy"] > 0:
+            # 룰북 ⑦: 사이클 시작 시 첫 10회분만 예수금, 이후 주간 5회분 버퍼. 나머지는 SGOV.
+            print(f"    → 예수금은 버퍼만 유지: 사이클 초기 10회분(약 {C.fmt_won(10 * one)}), "
+                  f"이후 주간 5회분(약 {C.fmt_won(5 * one)}). 나머지 현금은 SGOV 파킹.")
+            print(f"    → 리저브 {C.fmt_won(st['reserve'])}는 전액 SGOV(발동 시 매도 후 투입).")
+        else:
+            # 신호 대기·리저브 자금은 발생 즉시 전액 SGOV
+            print(f"    → 신호 대기·리저브 자금이므로 전액 SGOV 파킹 유지.")
     weekday = tqqq.index[-1].weekday()  # 0=월 … 4=금
     if weekday == 4:
         next5 = 5 * one
