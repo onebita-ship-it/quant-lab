@@ -11,6 +11,8 @@
   python journal/log_trade.py --action quarter --shares 5.35 --price 40.10
   # 리저브 편입(고점대비 -30%/-50% 발동 시)
   python journal/log_trade.py --action deploy_reserve
+  # 계좌 연 1회 리밸런스(42.5/42.5/15 복원) 기록 — 룰북 ⑧
+  python journal/log_trade.py --action rebalance
 
 옵션: --date YYYY-MM-DD(기본 최신 거래일), --fee 실제수수료$(기본 가정치), --dry(미저장)
 """
@@ -49,7 +51,7 @@ def append_trade(row):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--action", required=True,
-                    choices=["buy", "take_profit", "quarter", "deploy_reserve"])
+                    choices=["buy", "take_profit", "quarter", "deploy_reserve", "rebalance"])
     ap.add_argument("--shares", type=float, default=0.0)
     ap.add_argument("--price", type=float, default=0.0)
     ap.add_argument("--date", default=None)
@@ -66,6 +68,22 @@ def main():
     date_str = str(args.date or rdate)
     div, tp = cfg["divisions"], cfg["take_profit_pct"]
     checks, notes = {}, []
+
+    # ---- 계좌 연 1회 리밸런스 (룰북 ⑧) ----
+    if args.action == "rebalance":
+        prev = st.get("last_rebalance") or st.get("inception_date")
+        st["last_rebalance"] = date_str
+        alloc = cfg.get("allocation", {"core": 0.425, "satellite": 0.425, "gold": 0.15})
+        notes.append(f"계좌 연례 리밸런스 → 목표 배분 복원 "
+                     f"코어 {alloc['core']:.1%}/위성 {alloc['satellite']:.1%}/"
+                     f"금 {alloc['gold']:.1%}"
+                     + (f" (직전 기준일 {prev})" if prev else " (첫 리밸런스 기록)"))
+        row = {"date": date_str, "action": "rebalance", "shares": 0, "price": 0,
+               "ref_close": round(rc, 4), "slippage_bps": "", "cash_flow": 0,
+               "cycle_id": st["current_cycle_id"], "compliant": True,
+               "checks": "", "note": " / ".join(notes)}
+        _finish(st, cfg, row, args.dry, rc)
+        return
 
     # ---- 리저브 편입 ----
     if args.action == "deploy_reserve":
@@ -95,6 +113,10 @@ def main():
     slip_bps = (args.price - rc) / rc * 10000 if rc else 0.0
 
     if args.action == "buy":
+        # 계좌 개시일 기록(최초 매수 1회) — 연례 리밸런스·금 매수 기준일(룰북 ⑧)
+        if not st.get("inception_date"):
+            st["inception_date"] = date_str
+            notes.append(f"📌 계좌 개시일 기록: {date_str} (연례 리밸런스 시계 시작)")
         # 진입/금액 준수 판정
         if args.new_cycle:
             sig = C.latest_signal(qqq, cfg, asof=args.date)

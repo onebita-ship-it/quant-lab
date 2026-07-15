@@ -39,6 +39,9 @@ DEFAULT_CONFIG = {
     "total_capital": 40000.0,
     "deploy_frac": 1.0,          # 1.0=100% / 0.67=67%+리저브
     "reserve_triggers": [-0.30, -0.50],
+    "gold_ticker": "GLD",        # 룰북 ⑧ 금 슬리브(무상관 부품)
+    # 계좌 전체 배분 = B안(공격형): 코어/위성 50/50 + 금 15% 오버레이 (룰북 ⑧)
+    "allocation": {"core": 0.425, "satellite": 0.425, "gold": 0.15},
 }
 
 
@@ -63,6 +66,8 @@ def default_state(cfg):
         "peak_equity": round(total, 2),
         "reserve_tiers_fired": [],
         "cycles_closed": [],    # {id,start,end,invested,proceeds,pnl_pct,reason}
+        "inception_date": None,  # 계좌 개시일(첫 매수 시 기록) — 연례 리밸런스·금 매수 기준
+        "last_rebalance": None,  # 마지막 연 1회 계좌 리밸런스일(룰북 ⑧)
     }
 
 
@@ -250,6 +255,23 @@ def satellite_status(cfg, asof=None, refresh=False):
     on = [r for r in rows if r["on"] and r["mom"] is not None]
     target = max(on, key=lambda r: r["mom"])["ticker"] if on else "SGOV"
     return {"assets": rows, "target": target}
+
+
+def annual_rebalance_status(st, today):
+    """연 1회 계좌 리밸런스 상태 (룰북 ⑧) — 조언용, 상태 불변.
+
+    기준일(anchor) = 마지막 리밸런스일(없으면 개시일). 개시 전이면 started=False.
+    기준일로부터 1년 지나면 due=True(리밸런스일 도래).
+    """
+    anchor = st.get("last_rebalance") or st.get("inception_date")
+    if not anchor:
+        return {"started": False, "anchor": None, "next_due": None,
+                "due": False, "days_left": None}
+    a = pd.Timestamp(anchor)
+    nd = a + pd.DateOffset(years=1)
+    t = pd.Timestamp(today)
+    return {"started": True, "anchor": a.date(), "next_due": nd.date(),
+            "due": t >= nd, "days_left": (nd - t).days}
 
 
 def is_month_end(date):

@@ -194,6 +194,31 @@ def main():
                       f"{(dd - nt) * 100:.1f}%p 더 하락하면 발동.")
             else:
                 print("  모든 리저브 티어 발동 완료.")
+
+    # 금(GLD) + 계좌 연 1회 리밸런스 안내 (룰북 ⑧, B안 42.5/42.5/15)
+    alloc = cfg.get("allocation", {"core": 0.425, "satellite": 0.425, "gold": 0.15})
+    gold_tk = cfg.get("gold_ticker", "GLD")
+    cap = cfg["total_capital"]
+    reb = C.annual_rebalance_status(st, pdate)
+    print(f"\n[금({gold_tk}) · 계좌 리밸런스 — 룰북 ⑧ (B안 "
+          f"{alloc['core']:.1%}/{alloc['satellite']:.1%}/{alloc['gold']:.1%})]")
+    if not reb["started"]:
+        print(f"  개시 전 — 시작일에 총자본 {C.fmt_won(cap)}을 3슬리브로 최초 배분:")
+        print(f"    코어(무한매수) {C.fmt_won(cap * alloc['core'])} · "
+              f"위성 {C.fmt_won(cap * alloc['satellite'])} · "
+              f"{gold_tk} {C.fmt_won(cap * alloc['gold'])}")
+        print(f"    → {gold_tk}는 시작일 전액 일시 매수 후, 연 1회 리밸런스 외 매매 없음.")
+        print(f"    (첫 매수를 log_trade.py로 기록하면 개시일이 잡혀 연례 리밸런스 시계가 시작됨)")
+    else:
+        print(f"  {gold_tk} {alloc['gold']:.0%} 보유 유지 — 연 1회 리밸런스 외 매매 없음 "
+              f"(기준일 {reb['anchor']})")
+        if reb["due"]:
+            print(f"  🔁 연례 리밸런스일 도래! 기준일로부터 1년 경과 (예정 {reb['next_due']})")
+            print(f"     → 3슬리브를 {alloc['core']:.1%}/{alloc['satellite']:.1%}/"
+                  f"{alloc['gold']:.1%}로 복원(코어·위성·금 목표비중 맞춰 매매).")
+            print(f"     체결 후: python journal/log_trade.py --action rebalance")
+        else:
+            print(f"  다음 연례 리밸런스: {reb['next_due']} (D-{reb['days_left']})")
     print()
 
 
