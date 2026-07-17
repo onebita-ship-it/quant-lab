@@ -14,6 +14,8 @@
 (A)(B)는 trend_signal_v3()에서 사전 계산해 trend_ok로 주입, (C)는 run() 엔진의 상태로 처리.
 쿼터손절(quarter)·현금비중(allocation)은 v2 그대로 계승.
 """
+from __future__ import annotations  # py3.9 호환(어노테이션 지연평가, 동작 불변)
+
 from dataclasses import dataclass, field
 
 import pandas as pd

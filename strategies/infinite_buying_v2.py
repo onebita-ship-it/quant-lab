@@ -12,6 +12,8 @@ v1 대비 변경점:
 수수료/슬리피지는 매수·매도 양쪽에 반영 (v1과 동일).
 사이클 단위 기록을 남겨 승률·사이클 수익률 분포를 계산.
 """
+from __future__ import annotations  # py3.9 호환(어노테이션 지연평가, 동작 불변)
+
 from dataclasses import dataclass, field
 
 import pandas as pd

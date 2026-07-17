@@ -13,6 +13,8 @@
 '상승 200선 위 + 50<200'인 초기 회복 구간뿐이다. 그 교집합이 유의미한지는 백테스트로 확인.
 (A)기울기·(B)스트릭·쿼터손절·현금비중·(하락한정)쿨다운·변동성필터는 v5 계승.
 """
+from __future__ import annotations  # py3.9 호환(어노테이션 지연평가, 동작 불변)
+
 from dataclasses import dataclass, field
 
 import pandas as pd

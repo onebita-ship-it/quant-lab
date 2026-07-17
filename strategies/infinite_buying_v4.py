@@ -13,6 +13,8 @@
 
 (A)기울기 필터·(B)확정 스트릭·쿼터손절·현금비중은 v3 그대로 계승.
 """
+from __future__ import annotations  # py3.9 호환(어노테이션 지연평가, 동작 불변)
+
 from dataclasses import dataclass, field
 
 import pandas as pd

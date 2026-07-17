@@ -11,6 +11,8 @@
 (A)기울기·(B)스트릭·쿼터손절·현금비중·(하락한정)쿨다운은 v4 그대로 계승.
 vol_ok는 trend_ok와 동일하게 사전계산해 엔진에 주입하며, 신규 진입은 둘 다 통과해야 허용된다.
 """
+from __future__ import annotations  # py3.9 호환(어노테이션 지연평가, 동작 불변)
+
 from dataclasses import dataclass, field
 
 import pandas as pd

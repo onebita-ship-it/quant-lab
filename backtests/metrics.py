@@ -1,4 +1,6 @@
 """성과지표 계산: CAGR, MDD, 샤프, 사이클 승률, 최장 하락기간."""
+from __future__ import annotations  # py3.9 호환: 'list | None' 등 지연평가(런타임 동작 불변)
+
 import numpy as np
 import pandas as pd
 

@@ -17,6 +17,8 @@ vol_mode로 세 모드 선택 (비교용):
 
 (A)기울기·(B)스트릭·쿼터손절·현금비중·쿨다운은 v6 계승.
 """
+from __future__ import annotations  # py3.9 호환(어노테이션 지연평가, 동작 불변)
+
 from dataclasses import dataclass, field
 
 import pandas as pd
